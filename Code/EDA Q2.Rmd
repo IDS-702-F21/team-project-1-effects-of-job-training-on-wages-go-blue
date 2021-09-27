@@ -1,0 +1,52 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Exploratory Data Analysis
+
+We start our EDA by observing the trend of our preditor variables on our response variable which is re78_fac. Given that the treat variable is the main variable of interest, we explore it first. We see that the probability for earning a non zero wage is approximately the same for everyone regardless they took part in the NSW training or not. We also conducted Chi-squared test to test the association between the two variables and given our p-value, we fail to reject the null. The table indicating the conditional probabilities is provided below:
+
+```{r,, results= "asis", echo=FALSE, warning=FALSE, message=FALSE}
+library(stargazer)
+options(stargazer.comment = FALSE)
+
+lal <- read.csv("/Users/mohammadanas/Desktop/Duke MIDS/Fall 2021/MODELLING AND REPRESENTATION OF DATA/Team Project 1/git repo/team-project-1-effects-of-job-training-on-wages-go-blue/Data/lalondedata.txt",header=T,
+                    colClasses=c("factor","factor","numeric","numeric",
+                                 "factor", "factor", "factor", "factor", 
+                                 "numeric", "numeric", "numeric"))
+lal$re78Bi <- 0
+lal$re78Bi[lal$re78 > 0] <- 1
+lal$re78Bi_F <- "Zero W"
+lal$re78Bi_F[lal$re78Bi == 1] <- "NonZero W"
+lal$re78Bi_F <- factor(lal$re78Bi_F)
+
+lal$educ_F <- "1.Elementary"
+lal$educ_F[lal$educ >= 6 & lal$educ < 10] <- "2.Middle"
+lal$educ_F[lal$educ >= 10 & lal$educ < 13] <- "3.High School"
+lal$educ_F[lal$educ >= 13] <- "4.After high"
+lal$educ_F <- factor(lal$educ_F)
+treat_re78 <- apply(table(lal[,c("re78Bi_F","treat")])/sum(table(lal[,c("re78Bi_F","treat")])),
+      2,function(x) x/sum(x)) 
+stargazer(treat_re78, type ='latex', title = 'Conditional Probabilities', header = FALSE, digits = 2, no.space = TRUE)
+```
+
+We test the association of our response variable with other factor variables as well using the similar procedure. We notice that black people are less likely to earn a non-zero wage as compared to non-black people. The Chi-squared test shows us that the variables Hispanic, married and no-degree have no association with the our response variable. We create box plots to explore the affect of our continuous predictors on our response variable. The box plots show us people who earn a non-zero wage are likely to be more educated. We also note that younger people are more likely to earn non-zero wages. 
+
+We move on to explore whether the effect of any of our predictors on our response variable varies with other predictors. The box plots below indicate that for people who did not participate in the NSW training, younger people are more likely to earn non-zero wages, while the trend seems to be the opposite for the people who took part in the training. 
+
+```{r,, results= "asis", echo=FALSE, warning=FALSE, message=FALSE, fig.height= 3}
+library(ggplot2)
+ggplot(lal,aes(x=re78Bi_F, y=age, fill=re78Bi_F)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Age vs Wage by Treatment",
+       x="Wage?",y="Age") + theme(plot.title = element_text(hjust = 'center')) +
+  theme_classic() + theme(legend.position="none") + facet_wrap(~treat)
+```
+
+
+We also observed that for non black people, the training was more effective. Therefore, we include the interaction for black and treatment variable in our model. Based on the results from our EDA, we saw that the interactions affects of age and education, Hispanic and treatment variable and earning in 1974 and treatment variable are worth investigating as well.
+
+

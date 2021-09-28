@@ -1,7 +1,7 @@
 rm(list = ls())
-getwd()
 
-setwd("/Users/Aarushi/Duke/MIDS - Fall 2021/IDS 702 - Modeling and Data Representation/Team Project -1/")
+getwd()
+setwd("C:\\Users\\deeks\\Documents\\MIDS\\IDS 702_Modeling and representation of data\\Team Assignments\\Datasets")
 
 # install.packages()
 library(arm)
@@ -34,6 +34,9 @@ nsw$educ_F <- factor(nsw$educ_F)
 
 str(nsw)
 table(nsw$educ)
+
+table(nsw$re78Bi)
+table(nsw$re78Bicm)
 
 ####### Q2 #######
 ### EDA

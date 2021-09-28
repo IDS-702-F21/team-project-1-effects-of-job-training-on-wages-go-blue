@@ -1,0 +1,507 @@
+---
+title: "Question 2 EDA + Model"
+author: "Deekshita Saikia"
+date: "9/28/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Reading in libraries
+library(xtable)
+library(ggplot2)
+library(rms)
+library(arm)
+library(e1071)
+library(caret)
+library(pROC)
+library(stargazer)
+# library(kable)
+
+
+# Reading in dataset
+setwd("C:\\Users\\deeks\\Documents\\MIDS\\IDS 702_Modeling and representation of data\\Team Assignments\\Datasets")
+nsw <- read.csv("lalondedata.txt")
+
+# Checking observations and dataset summary
+head(nsw)
+dim(nsw)
+summary(nsw)
+str(nsw)
+
+nsw <- read.csv("lalondedata.txt",header=T,
+                colClasses=c("factor","factor","numeric","numeric",
+                             "factor", "factor", "factor", "factor", 
+                             "numeric", "numeric", "numeric"))
+
+# Creating binary response
+nsw$re78Bi <- 0
+nsw$re78Bi[nsw$re78 > 0] <- 1
+
+# Creating factor variable with labels
+nsw$re78Bi_F <- factor(nsw$re78Bi,
+                                levels=c(0,1),labels=c("Zero","Non-Zero"))
+
+str(nsw)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+### EDA
+## boxplots for the numeric variables
+
+# age vs re78Bi_F
+ggplot(nsw,aes(x=re78Bi_F, y=age, fill=re78Bi_F)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Greens") +
+  labs(title="Age vs Wage",
+       x="Wage?",y="Age") + 
+  theme_classic() + theme(legend.position="none")
+
+# educ vs re78Bi_F
+ggplot(nsw,aes(x=re78Bi_F, y=educ, fill=re78Bi_F)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Greens") +
+  labs(title="Educ vs Wage",
+       x="Wage?",y="Educ") + 
+  theme_classic() + theme(legend.position="none")
+# Educ indeed has an effect
+
+# re74 vs re78Bi_F
+ggplot(nsw,aes(x=re78Bi_F, y=re74, fill=re78Bi_F)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Greens") +
+  labs(title="Previous Wage vs Wage",
+       x="Wage?",y="Previous Wage") + 
+  theme_classic() + theme(legend.position="none")
+# Previous wage indeed has an effect
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+### EDA
+## tables for the factor variables
+
+# treat vs re78Bi_F
+table(nsw[,c("re78Bi_F","treat")])
+# table(nsw[,c("re78Bi_F","treat")])/sum(table(nsw[,c("re78Bi_F","treat")]))
+apply(table(nsw[,c("re78Bi_F","treat")])/sum(table(nsw[,c("re78Bi_F","treat")])),
+      2,function(x) x/sum(x)) 
+tapply(nsw$re78Bi_F, nsw$treat, function(x) table(x)/sum(table(x)))
+chisq.test(table(nsw[,c("re78Bi_F","treat")]))
+# surprisingly have no effect!
+
+# black vs re78Bi_F
+table(nsw[,c("re78Bi_F","black")])
+apply(table(nsw[,c("re78Bi_F","black")])/sum(table(nsw[,c("re78Bi_F","black")])),
+      2,function(x) x/sum(x)) 
+tapply(nsw$re78Bi_F, nsw$black, function(x) table(x)/sum(table(x)))
+chisq.test(table(nsw[,c("re78Bi_F","black")]))
+# black indeed has an effect
+
+# hispan vs re78Bi_F
+table(nsw[,c("re78Bi_F","hispan")])
+apply(table(nsw[,c("re78Bi_F","hispan")])/sum(table(nsw[,c("re78Bi_F","hispan")])),
+      2,function(x) x/sum(x)) 
+tapply(nsw$re78Bi_F, nsw$hispan, function(x) table(x)/sum(table(x)))
+chisq.test(table(nsw[,c("re78Bi_F","hispan")]))
+
+# married vs re78Bi_F
+table(nsw[,c("re78Bi_F","married")])
+apply(table(nsw[,c("re78Bi_F","married")])/sum(table(nsw[,c("re78Bi_F","married")])),
+      2,function(x) x/sum(x)) 
+tapply(nsw$re78Bi_F, nsw$married, function(x) table(x)/sum(table(x)))
+chisq.test(table(nsw[,c("re78Bi_F","married")]))
+
+# nodegree vs re78Bi_F
+table(nsw[,c("re78Bi_F","nodegree")])
+apply(table(nsw[,c("re78Bi_F","nodegree")])/sum(table(nsw[,c("re78Bi_F","nodegree")])),
+      2,function(x) x/sum(x)) 
+tapply(nsw$re78Bi_F, nsw$nodegree, function(x) table(x)/sum(table(x)))
+chisq.test(table(nsw[,c("re78Bi_F","nodegree")]))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+## binnedplots of continuous predictors versus re78Bi
+
+par(mfrow=c(1,1)) 
+# age vs re78Bi_F
+binnedplot(y=nsw$re78Bi,nsw$age,xlab="Age",ylim=c(0,1),col.pts="navy",
+           ylab ="Non-zero Wage?",main="Binned Age and Non-zero Wage cases",
+           col.int="white") 
+# seems no obvious trend, slightly went down
+
+# educ vs re78Bi_F
+binnedplot(y=nsw$re78Bi,nsw$educ,xlab="Educ",ylim=c(0,1),col.pts="navy",
+           ylab ="Non-zero Wage?",main="Binned Educ and Non-zero Wage cases",
+           col.int="white") 
+# roughly linearly incase trend as expected
+
+# re74 vs re78Bi_F
+binnedplot(y=nsw$re78Bi,nsw$re74,xlab="Previous Wage",ylim=c(0,1),col.pts="navy",
+           ylab ="Non-zero Wage?",main="Binned Previous Wage and Non-zero Wage cases",
+           col.int="white") 
+# roughly linearly incase trend as expected
+
+## short brief of observations:
+# shall include in the base model: educ, re74, treat (as question wants), black
+```
+
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+## interaction
+# age vs re78Bi_F by educ
+table(nsw$age)
+summary(nsw)
+ggplot(nsw,aes(x=re78Bi_F, y=age, fill=re78Bi_F)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Age vs Non-zero Wages, by Educ",
+       x="Non-zero Wages?",y="Age") + 
+  theme_classic() + theme(legend.position="none") +
+  #scale_x_discrete(labels=c("0" = "No","1" = "Yes")) +
+  facet_wrap( ~ educ)
+# shall investigate the interaction 
+
+# re74 vs re78Bi_F by treat
+ggplot(nsw,aes(x=re78Bi_F, y=re74, fill=re78Bi_F)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Previous Wage vs Non-zero Wages, by treat",
+       x="Non-zero Wages?",y="Previous Wage") + 
+  theme_classic() + theme(legend.position="none") +
+  #scale_x_discrete(labels=c("0" = "No","1" = "Yes")) +
+  facet_wrap( ~ treat)
+# this can be included in the full model (try stay away from log to avoid loss
+# observation)
+
+# age vs re78Bi_F by treat
+ggplot(nsw,aes(x=re78Bi_F, y=age, fill=re78Bi_F)) +
+  geom_boxplot() + #coord_flip() +
+  scale_fill_brewer(palette="Reds") +
+  labs(title="Age vs Wage",
+       x="Wage?",y="Age") + 
+  theme_classic() + theme(legend.position="none") + 
+  facet_wrap(~treat)
+# shall investigate the interaction
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# educ vs re78Bi by black
+par(mfcol=c(2,1))
+table(nsw$educ)
+#first plot for black = 0
+binnedplot(nsw$educ[nsw$black=="0"], y=nsw$re78Bi[nsw$black=="0"], 
+           xlab = "Educ", ylab = "Non-zero Wage", 
+           main = "Binned Educ and Non-zero Wage cases (Black = 0)") 
+
+#next the plot for black = 1
+binnedplot(nsw$educ[nsw$black=="1"], y=nsw$re78Bi[nsw$black=="1"], 
+           xlab = "Educ", ylab = "Non-zero Wage", 
+           main = "Binned Educ and Non-zero Wage cases (Black = 1)") 
+# shall investigate the interaction as linear increase trend disappear 
+# when black = 1
+
+# educ_F vs re78Bi_F by black
+nsw_black0 <- nsw[nsw$black=="0",]
+nsw_black1 <- nsw[nsw$black=="1",]
+table(nsw$black,nsw$educ)
+apply(table(nsw_black0[,c("re78Bi_F", "educ")])/sum(table(nsw_black0[,c("re78Bi_F", "educ")])),
+      2,function(x) x/sum(x)) 
+
+apply(table(nsw_black1[,c("re78Bi_F", "educ")])/sum(table(nsw_black1[,c("re78Bi_F", "educ")])),
+      2,function(x) x/sum(x))
+# shall investigate the interaction
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# educ_F vs re78Bi_F by hispan
+nsw_hispan0 <- nsw[nsw$hispan=="0",]
+nsw_hispan1 <- nsw[nsw$hispan=="1",]
+table(nsw$hispan,nsw$educ)
+apply(table(nsw_hispan0[,c("re78Bi_F", "educ")])/sum(table(nsw_hispan0[,c("re78Bi_F", "educ")])),
+      2,function(x) x/sum(x)) 
+
+apply(table(nsw_hispan1[,c("re78Bi_F", "educ")])/sum(table(nsw_hispan1[,c("re78Bi_F", "educ")])),
+      2,function(x) x/sum(x))
+# given that low observation in elementary and after high for hispan, we shall 
+# NOT investigate the interaction
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# black vs re78Bi_F by treat
+nsw_treat0 <- nsw[nsw$treat=="0",]
+nsw_treat1 <- nsw[nsw$treat=="1",]
+table(nsw$black,nsw$treat)
+apply(table(nsw_treat0[,c("re78Bi_F", "black")])/sum(table(nsw_treat0[,c("re78Bi_F", "black")])),
+      2,function(x) x/sum(x)) 
+
+apply(table(nsw_treat1[,c("re78Bi_F", "black")])/sum(table(nsw_treat1[,c("re78Bi_F", "black")])),
+      2,function(x) x/sum(x))
+# shall investigate the interaction 
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# treat vs re78Bi_F by black
+nsw_black0 <- nsw[nsw$black=="0",]
+nsw_black1 <- nsw[nsw$black=="1",]
+table(nsw$black,nsw$treat)
+apply(table(nsw_black0[,c("re78Bi_F", "treat")])/sum(table(nsw_black0[,c("re78Bi_F", "treat")])),
+      2,function(x) x/sum(x)) 
+
+apply(table(nsw_black1[,c("re78Bi_F", "treat")])/sum(table(nsw_black1[,c("re78Bi_F", "treat")])),
+      2,function(x) x/sum(x))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# treat vs re78Bi_F by hispan
+nsw_hispan0 <- nsw[nsw$hispan=="0",]
+nsw_hispan1 <- nsw[nsw$hispan=="1",]
+table(nsw$hispan,nsw$treat)
+apply(table(nsw_hispan0[,c("re78Bi_F", "treat")])/sum(table(nsw_hispan0[,c("re78Bi_F", "treat")])),
+      2,function(x) x/sum(x)) 
+
+apply(table(nsw_hispan1[,c("re78Bi_F", "treat")])/sum(table(nsw_hispan1[,c("re78Bi_F", "treat")])),
+      2,function(x) x/sum(x)) 
+# shall investigate the interaction
+
+# brief: interactions shall be considered: 
+# treat: hispan, treat:black, educ:black, re74:treat, age:educ, age:treat
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+nsw$age_c <- nsw$age - mean(nsw$age)
+
+#Model 2 - Main effects (Numeric Education)
+base_model <- glm(re78Bi_F ~ educ + black + hispan + treat + re74 + age_c + 
+                 married, data = nsw, family = binomial) # FINAL BASE MODEL
+
+summary(base_model)
+# Model 1 - considers all the main effects (excluding No degree)and education as numeric)
+# At 95% significance Black, Re74 and Age_c are significant
+# AIC = 650.95
+
+#Model Assessment
+
+#save the raw residuals
+rawresid1 <- residuals(base_model,"resp")
+
+#binned residual plots - model
+binnedplot(x=fitted(base_model),y=rawresid1,xlab="Pred. probabilities",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+#looks good
+
+# For significant coeffs
+#binned residual plots - centered Age
+binnedplot(x=nsw$age_c,y=rawresid1,xlab="Age centered",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+#no trend 2 points outside
+
+#binned residual plots - Re74
+binnedplot(x=nsw$re74,y=rawresid1,xlab="Re74",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+#not as much of a trend 2 points outside
+
+#binned residual plots - Educ
+binnedplot(x=nsw$educ,y=rawresid1,xlab="Educ",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+
+# Model validation
+
+# #let's do the confusion matrix with .5 threshold
+# Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(base_model) >= 0.5, "1","0")),
+#                             as.factor(nsw$re78Bi),positive = "1")
+# Conf_mat$table
+# Conf_mat$overall["Accuracy"];
+# Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
+# #Maybe we can try to increase that accuracy.
+# #Also, the TNR looks low here.
+# 
+# #look at ROC curve
+# roc(nsw$re78Bi_F,fitted(Model_2),plot=T,print.thres="best",legacy.axes=T,
+#     print.auc =T,col="red3")
+# 
+# #first, let's repeat with the marginal percentage in the data
+# 
+# Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(Model_2) >= 0.784, "1","0")),
+#                             as.factor(nsw$re78Bi),positive = "1")
+# Conf_mat$table
+# Conf_mat$overall["Accuracy"];
+# Conf_mat$byClass[c("Sensitivity","Specificity")]
+
+# ~~~~~~~~~~~~~~~~~BASE_LINE IS OUR BASELINE MODEL, WITH BASELINE ACCURACY~~~~~~~~~~~~~~~~~~~~~~
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+n <- nrow(nsw)
+
+null_model <- glm(re78Bi_F~ treat + age_c + black + hispan + treat:black + treat:hispan + treat:age_c,data=nsw,family=binomial)
+
+full_model <- glm(re78Bi_F ~ treat*black  + treat*hispan + re74*treat + educ*black + age_c*treat 
+                  + age_c*educ + married, data = nsw, family = binomial)
+
+AIC_stepwise <- step(null_model, scope = formula(full_model),direction="both",trace=0)
+summary(AIC_stepwise)
+# Model call - re78Bi_F ~ treat + age_c + black + hispan + re74 + treat:hispan + 
+#   treat:age_c + treat:re74
+
+BIC_stepwise <- step(null_model,scope= formula(full_model),direction="both",
+     trace=0,k = log(n))
+summary(BIC_stepwise)
+# Model call - re78Bi_F ~ treat + age_c + re74 + treat:age_c
+
+# ~~~~~~~~ Work in progress ~~~~~~~~~~~~~
+# Comparing the AIC and BIC models by an ANOVA test
+anova(BIC, AIC_stepwise, test = "Chisq")
+
+# ~~~~~~~~~~~~~~~~~~~~~AIC_Stepwise is our final model~~~~~~~~~~~~~~~~~~~~~~~~~~~
+```
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Compare models
+
+# Comparing black and treat:re74
+compare1 <- glm(re78Bi_F ~ treat + age_c  + re74 +black 
+                + treat:age_c + treat:re74, data = nsw, family = binomial)
+anova(BIC_stepwise,compare1, test="Chisq")
+
+anova(compare1, AIC_stepwise, test="Chisq")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+Final_Model <- glm(formula = re78Bi_F ~ treat + age_c  + re74 + black 
+                + treat:age_c + treat:re74, family = binomial, 
+                   data = nsw)
+
+rawresid4 <- residuals(Final_Model,"resp")
+
+par(mfcol=c(1,1))
+
+binnedplot(x=fitted(Final_Model),y=rawresid4,xlab="Pred. probabilities",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot_1",col.pts="navy")
+
+# Real Annual Earnings in 1974
+binnedplot(x=nsw$re74,y=rawresid4,xlab="re74 Earnings",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+
+# Centered Age
+binnedplot(x=nsw$age_c,y=rawresid4,xlab="Age centered",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+#Transformations with the age predictor
+
+nsw$age_c_sq <- (nsw$age_c)^2
+nsw$age_c_cb <- (nsw$age_c)^3
+
+Final_Model_1_sq <- glm(formula = re78Bi_F ~ treat + age_c  + age_c_sq + re74 + black
+                + treat:age_c + treat:age_c_sq + treat:re74, family = binomial, data = nsw)
+summary(Final_Model_1_sq)
+
+Final_Model_1_cb <- glm(formula = re78Bi_F ~ treat + age_c  + age_c_sq + age_c_cb + re74 + black 
+                + treat:age_c + treat:age_c_sq + treat:age_c_cb + treat:re74, family = binomial, data = nsw)
+summary(Final_Model_1_cb)
+
+rawresid5 <- residuals(Final_Model_1_sq,"resp")
+binnedplot(x=fitted(Final_Model_1_sq),y=rawresid5,xlab="Pred. probabilities",
+          col.int="red4",ylab="Avg. residuals",main="Binned residual plot_sq",col.pts="navy")
+
+binnedplot(x=nsw$age_c,y=rawresid5,xlab="Age",
+          col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+binnedplot(x=nsw$age_c_sq,y=rawresid5,xlab="Age squared",
+          col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+
+rawresid6 <- residuals(Final_Model_1_cb,"resp")
+binnedplot(x=fitted(Final_Model_1_cb),y=rawresid6,xlab="Pred. probabilities",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot_cb",col.pts="navy")
+
+binnedplot(x=nsw$age_c,y=rawresid6,xlab="Age",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+binnedplot(x=nsw$age_c_sq,y=rawresid6,xlab="Age squared",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+binnedplot(x=nsw$age_c_cb,y=rawresid6,xlab="Age Cubed",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+Final_Model <- glm(formula = re78Bi_F ~ age_c + re74 + treat  + black 
+                + treat:age_c + treat:re74, family = binomial, 
+                   data = nsw)
+
+summary(Final_Model)
+
+exp(Final_Model$coefficients)
+exp(confint.default(Final_Model))
+
+# roc(nsw$re78Bi_F,fitted(Final_Model),plot=T,print.thres="best",legacy.axes=T,
+#     print.auc =T,col="red3")
+# 
+# #marginal percentage in the data
+# Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(Final_Model) >= 0.752, "1","0")),
+#                             as.factor(nsw$re78Bi),positive = "1")
+# Conf_mat$table
+# Conf_mat$overall["Accuracy"];
+# Conf_mat$byClass[c("Sensitivity","Specificity")]
+# # summary(Final_Model)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+# confusion matrix
+Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(Final_Model) >= 0.5, "1","0")),
+                            as.factor(nsw$re78Bi),positive = "1")
+Conf_mat$table
+Conf_mat$overall["Accuracy"];
+Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
+
+table(nsw$re78Bi_F)
+
+#ROC curve...
+roc(nsw$re78Bi,fitted(Final_Model),plot=T,print.thres="best",legacy.axes=T,
+    print.auc =T,col="red3")
+
+#let's repeat with the marginal percentage in the data
+Conf_mat_FM1 <- confusionMatrix(as.factor(ifelse(fitted(Final_Model) >= 0.752, "1","0")),
+                            as.factor(nsw$re78Bi),positive = "1")
+Conf_mat_FM1$table
+Conf_mat_FM1$overall["Accuracy"];
+Conf_mat_FM1$byClass[c("Sensitivity","Specificity")]
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Checking multicollinearity
+
+library(rms)
+vif(Final_Model)
+
+# All variables well within range
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

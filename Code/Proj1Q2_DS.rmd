@@ -19,6 +19,8 @@ library(e1071)
 library(caret)
 library(pROC)
 library(stargazer)
+library(ggdark)
+library(ggeasy)
 # library(kable)
 
 
@@ -184,10 +186,11 @@ ggplot(nsw,aes(x=re78Bi_F, y=re74, fill=re78Bi_F)) +
 ggplot(nsw,aes(x=re78Bi_F, y=age, fill=re78Bi_F)) +
   geom_boxplot() + #coord_flip() +
   scale_fill_brewer(palette="Reds") +
-  labs(title="Age vs Wage",
-       x="Wage?",y="Age") + 
-  theme_classic() + theme(legend.position="none") + 
-  facet_wrap(~treat)
+  labs(title="Age vs Wage by Training",
+       x="Wage",y="Age") + 
+  dark_theme_gray() + theme(legend.position="none") + 
+  facet_wrap(~treat) +
+  ggeasy::easy_center_title()
 # shall investigate the interaction
 ```
 

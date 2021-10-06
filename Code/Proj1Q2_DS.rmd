@@ -25,7 +25,7 @@ library(ggeasy)
 
 
 # Reading in dataset
-setwd("C:\\Users\\deeks\\Documents\\MIDS\\IDS 702_Modeling and representation of data\\Team Assignments\\Datasets")
+setwd("../../../dataset/")
 nsw <- read.csv("lalondedata.txt")
 
 # Checking observations and dataset summary
@@ -361,7 +361,7 @@ summary(BIC_stepwise)
 
 # ~~~~~~~~ Work in progress ~~~~~~~~~~~~~
 # Comparing the AIC and BIC models by an ANOVA test
-anova(BIC, AIC_stepwise, test = "Chisq")
+anova(BIC_stepwise, AIC_stepwise, test = "Chisq")
 
 # ~~~~~~~~~~~~~~~~~~~~~AIC_Stepwise is our final model~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ```

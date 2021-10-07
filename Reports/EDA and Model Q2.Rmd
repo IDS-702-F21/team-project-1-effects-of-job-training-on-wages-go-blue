@@ -3,6 +3,16 @@ output:
   pdf_document: default
   html_document: default
 ---
+# Summary 
+
+In this analysis, we explore the effectiveness of the National Support Work (NSW) Demonstration program on the wages of the disadvantaged male workers. The focus is mainly to compare males who participated in the program versus the ones who did not participate and determine whether the participants are more likely to be employed in 1978.
+
+We also identify demographic factors that are likely to increase the chances earning a non-zero wage for these workers. Exploratory data analysis and stepwise selection are performed to determine the logistic regression model. We observe that people who participated in the program are more likely the to earn a non-zero wage as compared to people who did not participate. Age of the male workers was found to be an interesting variable as its effect on odds of earning a non-zero wage was different for the males who participated as compared to the non-participants.
+
+# Data Pre-processing
+
+We used the re78 variable provided to us in the dataset to create a binary variable re78Bi_F, which indicates whether the person was earning a non-zero wage in 1978 or not.  We use this factor variable as the response variable in our analysis. We ensure that the independent variables have the correct data type before proceeding with the analysis. The variables treat, black, hispan, married and no-degree were converted to factors, while the age and education were used as numeric variables in our model.
+
 
 # Exploratory Data Analysis
 
@@ -263,16 +273,32 @@ xtable(tab1, type ='latex', title = 'Results of Our Model', header = FALSE, digi
 
 ```
 
-The intercept of our model tell us that for a non-black person aged 27 years, and unemployed in 1974, the odds of earning positive wages in 1978 without training is 2.77. We see that for an unemployed person in 1974 aged 27, the odds of earning positive wages after receiving training is 1.89 times the odds of a person who did not receive training. For a person who did not receive training, a $1 increase in the earnings of 1974, increases the odds of earning positive wages  by 0.01%. For a person who did not receive training, a 1 year increase in age decreases the odds of earning positive wages by 5.5%. However,for people who participated in the training, 1 year increase in age leads to an increase in the odds of earning a non-zero wage by 1.9%. We get this value by multiplying the standard estimates (odds scale) of the age variable and interaction variable between age and treat. We also note that the odds of a black person earning positive wages is 0.54 times the odds of a non-black person earning positive wages. Despite having interactions, multicollinearity is not present in our model as the variance inflation factor of each of the variables is below 10. A table indicating the VIFs of all the variables in our model has been added to the appendix.
+Despite having interactions, multicollinearity is not present in our model as the variance inflation factor of each of the variables is below 10. A table indicating the VIFs of all the variables in our model is provided below.
+
+
+
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
 # Checking multicollinearity
 
 library(rms)
 vif_table <- xtable(as.table(vif(Final_Model)))
+xtable(vif_table)
 # All variables well within range
 
 ```
+
+# Conclusion
+
+
+To sum up our analysis, the people who participated in the program are more likely to earn a non-zero wage in 1978 as compared to people who did not participate. Statistically speaking, the odds of earning positive wages after receiving training is 1.89 times the odds of a person who did not receive training for a 27 year old male who was unemployed in 1974. Age was found to an interesting variable in our analysis. For a person who did not receive training, a 1 year increase in age decreases the odds of earning positive wages by 5.5%. However,for people who participated in the training, 1 year increase in age leads to an increase in the odds of earning a non-zero wage by 1.9%. We get this value by multiplying the standard estimates (odds scale) of the age variable and interaction variable between age and treat. Being a non-black person also increases the odds of earning a non-zero wages in 1978. 
+
+# Limitations
+
+Lastly, it is important to point out the limitations in our model.
+
+* Our model assumes that the length of the NSW training remained the same for all participants. However, in reality some participants joined the training program in 1974 while others joined in 1975. 
+* There is an uneven distribution in our response variable. The data is highly skewed towards people earning non-zero wages. A potential solution to this problem can be under sampling the data of males earning non-zero wages. 
 
 
 

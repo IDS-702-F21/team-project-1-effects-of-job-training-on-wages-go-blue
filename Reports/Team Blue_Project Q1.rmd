@@ -1,0 +1,314 @@
+---
+title: "__Effects  of Job Training on Wages__"
+author: "*Aarushi Verma, Deekshita Saikia, Mohammad Anas, Tego Chang, and Sydney Donati-Leach*"
+date: "`r format(Sys.time(),'%d/%m/%Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
+library(arm)
+library(pROC)
+library(e1071)
+library(caret)
+library(ggplot2)
+require(gridExtra)
+library(dplyr)
+library(magrittr)
+library(stargazer)
+```
+
+## __Summary__ 
+We fit a linear regression model to our data to analyze the effect of training on wages and infer whether any of the other variables recorded during the study had an impact on wages.
+
+#### To update method used and important results
+
+## __Introduction__
+
+In 1986 Robert J. LaLonde performed a research study to evaluate the econometric evaluations of training  programs (National Supported Work Demonstration) on post intervention income level for disadvantaged workers. In our report, we consider a subsection of the data used in the original study to explore questions similar to the ones in the original study:
+
+  * Is there evidence that workers who receive job training tend to earn higher wages than workers who do not receive job training?
+  * Can the impact of receiving job training on earnings be quantified? What is the likely range of the effect of the treatment?
+  * Do the effects differ by demographic groups?
+  * What are the other interesting associations with income? 
+
+## __Data__
+
+
+### __Data Pre-processing__\
+The data used in this analysis contains 614 male participants. The treatment group consists of participants for whom 1974 earnings can be obtained and the control group consists of all the unemployed males in 1976 whose income in 1975 was below the poverty level. 
+
+The real annual earnings for 1975 are measured during the course of the study and some participants were even paid during the course of the study. In order to ensure a better fit of our model and a sound analysis we chose to not incorporate the 1975 data in our analysis. 
+
+Since our question of interest is to evaluate whether participants who received training tend to earn higher wages, we created a new variable - $Wage\_difference$ based on the difference between real annual earnings in 1978 and 1974.
+
+
+```{r, include= FALSE, results= "asis" , message = FALSE, warning = FALSE, echo=FALSE}
+library(stargazer)
+nsw <- read.csv("/Users/Aarushi/Duke/MIDS - Fall 2021/Fall 2021/IDS 702 - Modeling and Data Representation/Team Project -1/lalondedata.txt")
+```
+
+```{r,include=FALSE, results= "asis" , message = FALSE, warning = FALSE, echo=FALSE}
+# Observing the data set
+summary(nsw)
+head(nsw)
+colnames(nsw)
+
+# Dropping the identifier row, as it is not required for our analysis
+nsw <- nsw[,2:ncol(nsw)]
+
+# identifying what 0 and 1 means for each factor variable
+nsw$treat[nsw$treat == 0] <- "No Training"
+nsw$treat[nsw$treat == 1] <- "Training"
+
+nsw$black[nsw$black == 0] <- "Non-Black"
+nsw$black[nsw$black == 1] <- "Black"
+
+nsw$hispan[nsw$hispan == 0] <- "Non-Hispanic"
+nsw$hispan[nsw$hispan == 1] <- "Hispanic"
+
+nsw$married[nsw$married == 0] <- "Not Married"
+nsw$married[nsw$married == 1] <- "Married"
+
+nsw$nodegree[nsw$nodegree == 1] <- "No Degree"
+nsw$nodegree[nsw$nodegree == 0] <- "Degree"
+
+# Converting the categorical variables into factor
+nsw$treat <- factor(nsw$treat)
+nsw$black <- factor(nsw$black)
+nsw$hispan <- factor(nsw$hispan)
+nsw$married <- factor(nsw$married)
+nsw$nodegree <- factor(nsw$nodegree)
+
+# Creating the response variable - comparing re78 against re74
+nsw$wage_diff <- nsw$re78 - nsw$re74
+
+# look at revised data set
+head(nsw)
+
+facs = c("treat", "black", "hispan", "married", "nodegree")
+for (col in facs){
+  nsw[[col]] = nsw[[col]] %>% as.character()
+}
+nsw = nsw%>% na.omit()
+```
+
+### __Exploratory Data Analysis__        
+
+To proceed with our analysis, we plotted our response variable $Wage\_difference$ to check whether it follows a normal distribution in order to proceed with linear regression. We see that the distribution of wage difference is relatively normally distributed. 
+
+```{r, echo=FALSE,header= FALSE, fig.height=3, fig.width=5,message = FALSE, warning = FALSE}
+p1 = nsw %>%
+ggplot(aes(x = wage_diff)) +
+  geom_histogram(aes(y=..density..),color="black",linetype="dashed",
+                 fill=rainbow(86),binwidth = 1000) +
+  geom_density(alpha=.25, fill="lightblue") +
+  scale_fill_brewer(palette="Blues") +
+  labs(title="Distribution of Difference b/w Real annual earnings in 1978 and 19774",y="Frequency", x= "Wage Difference") + 
+  theme_classic() + theme(plot.title = element_text(hjust = 0.5),legend.position="none")
+grid.arrange(p1, ncol=1)
+
+#- To include the outlier removal
+```
+
+To explore the data further, we plotted our variables to establish any interesting associations between them as well as the response variable. Based on the scatter plots for the continuous variables we looked at whether there was any trend evident highlighting a specific relationship between these variables. The EDA was our first step in deciding which variables we should include in our model.
+
+Based on a large number of plots and summary statistics, the indicator variables for whether or not the person was black, whether or not the person was hispanic, whether the person had a degree were identified as poor predictors. The boxplots for these variables did not indicate much of a difference based on category. 
+
+We did observe associations between wage difference and treatment and wage difference and married variables. There was a slight difference between the median values for people who received and did not receive training across these variables as can be seen in the plots below. We concluded these were important relationships to explore further.
+
+```{r,echo=FALSE, message=FALSE, fig.height=2, fig.width=8,warning=FALSE, results='asis'}
+
+
+# wage vs treat
+p1 = nsw %>%
+ggplot(aes(x=treat, y=wage_diff, fill=treat)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette="Accent") +
+  labs(title="Wage Difference vs Training",y="Wage Difference",x="Training") +
+  theme_classic() + theme(legend.position ="none",plot.title = element_text(hjust = 0.5))
+
+# wage vs married
+p2= nsw %>%
+ggplot(aes(x=married, y=wage_diff, fill=married)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette="Accent") +
+  labs(title="Wage Difference vs Married",y="Wage Difference",x="Married") +
+  theme_classic() + theme(legend.position ="none",plot.title = element_text(hjust = 0.5))
+
+grid.arrange(p1,p2, ncol=2)
+```
+
+After assessing the relationships between the variables, we went on to further explore the interactions between variables. In particular, the boxplots for interaction between wage vs age by treat and wage vs age by Black seemed significant. Based on the scatter plots, we noted a difference in the trend of the scatter plot across training and concluded to explore these interactions further.
+
+## EDA Interactions:        
+
+```{r, fig.height=2, fig.width=8,echo=FALSE, message=FALSE,fig.align='center', warning=FALSE, results='asis'}
+# wage vs age by treat
+p1 = nsw %>%
+ggplot(aes(x=age, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=treat)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Age by Treatment",y="Wage Difference",x="Age") +
+  facet_wrap( ~ treat,ncol= 2) #this is number of "flavors"
+# wage vs age by black
+p2 = nsw %>%
+ggplot(aes(x=age, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=black)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Age by Black",y="Wage Difference",x="Age") +
+  facet_wrap( ~ black,ncol= 2) #this is number of "flavors"
+
+grid.arrange(p1,p2, ncol=2)
+```
+
+## __Model__        
+
+To build our model, we  first built our baseline model which included all our main effects. We then included some interaction effects which we thought were significant, or they answered questions with respect to the study. With the help of anova tests we assessed if they were significant to our model. Next we used to stepwise selection using AIC to to generate our final model.
+
+### __Model Building__        
+
+Our first model included the main effect of every variable. To improve our interpretation we also mean centered the continuous predictor Age. Here our response variable is __Wage Difference between 1974 and 1978__ and the predictors are __treat, age (centered), black, hispan, education, married and no degree__.  After building our model and assessing it, we quickly realized there was an outlier in our data set; observation 132.  This point was not meeting our assumptions and it was showing up as a leverage point (more than 0.05) in our plot of Cook's Distance.  The outcome of our model remains the same with an R-squared of 0.07 with or without this observation. Therefore, we decided to remove this observation from our model and go through the assessment again to ensure we did not necessarily violate any assumptions. Based on the summary of this model, we noted 3 significant variables: treat, centered age and married.
+
+```{r, echo=FALSE,include = FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Removing obs 132
+NSW <- read.csv("/Users/Aarushi/Duke/MIDS - Fall 2021/Fall 2021/IDS 702 - Modeling and Data Representation/Team Project -1/lalondedata.txt")
+
+NSW$treat <- factor(NSW$treat)
+NSW$hispan <- factor(NSW$hispan)
+NSW$black <- factor(NSW$black)
+NSW$married <- factor(NSW$married)
+NSW$nodegree <- factor(NSW$nodegree)
+NSW$wage_diff <- NSW$re78 - NSW$re74
+NSW$agec <- NSW$age - mean(NSW$age)
+NSW$educ_c <- NSW$educ - mean(NSW$educ)
+
+`%!in%` <- Negate(`%in%`)
+NSW <- NSW[rownames(NSW) %!in% c(132), ]
+
+# in this part of the code we just remove the outlier from our model, Mention in the EDA about his outlier
+```
+
+
+```{r, include=FALSE,echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+library(ggplot2)
+modelbase <- lm(formula = wage_diff ~ treat + agec + black + hispan + educ + married + nodegree, data = NSW)
+#summary(modelbase)
+stargazer(modelbase)
+## this chunk of code just returns the base model
+```
+
+Next, we constructed another model using stepwise selection. A null model and a full model were determined, where the null model included variables of our interest (treat, black, hispan and age) and interactions between the demographics since they are questions of interest. The full model consisted of all variables the interactions between other demographics variables as well as education variable. We ran AIC as well as BIC to generate final models. The only difference between the two models was the variable married. We compared the 2 models using the anova test and choose AIC as our final model.
+
+To ensure our final model is the best fit for our data, we also included the interaction effects we found interesting during our EDA to the model step by step and used the anova test to conclude whether they improved our model. There seemed to be no additional impact of those interactions and we moved forward with our final model generated by AIC.
+
+Based on AIC our model our final model was:
+
+$$ Wage\_difference \sim \beta_{0} + \beta_{1}(age\_c) + \beta_{2}(treat) + \beta_{3}(married) + \beta_{4}(age_c:treat) $$
+
+### __Model Assessment__        
+
+To assess our final model we checked if any of the assumptions of Linearity, Normality, Equal variance and Independence were violated. 
+
+In order to check the linearity assumption we plotted the residuals of the model against age. The points were randomly distributed and there was no visible pattern, therefore we can concluded that the linearity assumption is not violated.
+
+```{r,include = FALSE,out.width = "40%",fig.align ="center",echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+library(ggplot2)
+ggplot(NSW, aes(x=agec, y = wage_diff)) + geom_point() + geom_smooth()
+# roughly linear for age
+```
+
+To check the independence and equal variance assumptions we plotted the residuals against the fitted values. The points seemed randomly distributed with no discernible pattern and the spread of variables seemed constant above and below the line. There did seem to be some points on the x axis that may have violated the equal variance of errors assumptions however, they were only few and we went ahead and said that neither of the assumptions are violated.
+
+To check for normality, we plotted the Q-Q plot. For our model we observed that majority of the points lie on the 45 degree line. There could be outliers present in the data, however there were not too many to say that the normality assumption was violated
+
+We also looked at the leverage points and outlier and verified whether any of then were significant using cook's distance. All the points on the cook's distance plot were well below the 0.05 point and we concluded that there were no influential points.
+
+```{r, include=FALSE,echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+main_model <- lm(formula = wage_diff ~ agec + treat + married + agec:treat, data = NSW)
+#summary(main_model)
+stargazer(main_model, title = "Results", float = TRUE, np.space=TRUE, header=FALSE, single.row=TRUE, font.size="small", digits = 2)
+```
+
+```{r,out.width="50%",fig.ncol=2,echo=FALSE,fig.align = "center", message=FALSE,warning=FALSE, results='asis'}
+par(mfrow=c(2,2),
+    mar=rep(2,4))
+
+
+plot(main_model, which = 1)
+# constant variance and independence but we need to check outliers
+plot(main_model, which = 2)
+# normality seems fine
+plot(main_model, which =5)
+# we have few few leverage points given their leverage is greater than 0.02
+
+# so now we have leverage and outliers and we check the cook's distance to ensure that none of 
+# them are influential points
+
+plot(main_model, 4)
+
+# we have no influential points 
+```
+
+We also checked if there was any multicollinearity between our variables to ensure that it did not hamper our analyses. The VIF values for all our variables were below 5 and we concluded there was no multocollinearity.
+```{r, include=FALSE,echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# lastly we check for multicollinearity
+library(rms)
+vif(main_model)
+# this part is essentially the model assessment of our main variable
+```
+
+### __Model Interpretation__        
+
+Here is the summary of our final model
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+main_model <- lm(formula = wage_diff ~ agec + treat + married + agec:treat, data = NSW)
+#summary(main_model)
+stargazer(main_model, title = "Linear Regression Summary", float = TRUE, no.space=TRUE, header=FALSE, single.row=TRUE, font.size="small", digits = 2, ci=TRUE, ci.level=0.95)
+```
+Based on our model, all our variables are statistically significant at the 95% confidence level.
+
+Our response variable is Wage Difference and our explanatory variables can be interpreted as follows:
+
+ * $\beta_{0}$ is the intercept term. The intercept term gives us the average value of our response variable when the explanatory variables are 0. __As per our model the the intercept value is 2304.41 which means that for a person of average age (27 years) who has received treatment and is married the wage difference is $2,304.41.__
+ 
+ * $\beta_{1}$ is the coefficient for the centered age variable. __For a one year increase in age the wage difference reduces by $137.68__
+ 
+ * $\beta_{2}$ is the coefficient for the treat variable. __For a participant who has received training, the wage difference between 1974 and 1978 is $2,123.82 higher than someone who has not received training.__
+ 
+ * $\beta_{3}$ is the coefficient for the married variable. __For a participant who is married, the wage difference between 1974 and 1978 is $1,652.88 lower than a participant who is not married.__
+ 
+#HELP#
+ * $\beta_{4}$ is the coefficient for the interaction between centered age and treat variable. __For a person of average age (27 years) who has received treatment, the wage difference will be $243.46 higher than someone who has not received training and is not of average age.__
+
+The adjusted of our model is 7% which means that 7% of the variation in our model can be explained by our model. The standard error is 7426.70 with 608 degrees of freedom. 
+
+The 95% confidence interval for our variables is also included in our summary table. Specifically for the treat variable, our confidence interval is [762.35, 3485.28].
+
+
+## __Conclusions__        
+
+1. Based on our model, we can observe that participants who received training, had a higher difference in their annual earnings between 1974 and 1978. This could be concluded as evidence that participants who received training tend to earn higher wages, however we must consider the additional factors that may have influenced this. Our model also captures the interaction between age and treatment indicating that age may have a significant role to play in the impact training has on participant's wages.
+
+2. Training is a statistically significant factor for difference in real annual earnings between 1974 and 1978. At the confidence level of 95% we see treat is significant and the coefficient can be interpreted as - For a participant who has received training, the wage difference between 1974 and 1978 is \$2,123.82 higher than someone who has not received training. The confidence interval for the treat variable is [762.35, 3485.28] which implies that the difference between the real annual earnings for someone who received training against someone who did not lies in the range of \$762.35 and $3,485.28
+
+3. The demographic indicators pertaining to race (black, hispanic) were not significant and therefore were not included in our model. The demographic factor of age was found to be significant. Age has a negative impact on wage difference
+
+  * What are the other interesting associations with income? 
+
+#### Potential Limitations        
+
+
+1. The linear regression model has very low r-squared value which limits the predictive accuracy of the model.
+
+2. Our response variable is biased with a high presence of 0 values which may skew our results
+
+\newpage
+
+## Appendix
+
+
+

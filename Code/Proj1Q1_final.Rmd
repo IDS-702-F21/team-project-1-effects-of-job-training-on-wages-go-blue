@@ -1,0 +1,305 @@
+---
+title: "Question 1 All Code"
+author: "TegoChang"
+date: "10/6/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(xtable.comment = FALSE)
+knitr::opts_chunk$set(fig.width=10, fig.height=5) 
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(xtable)
+library(ggplot2)
+library(rms)
+library(arm)
+library(e1071)
+library(caret)
+library(pROC)
+setwd("../../../dataset/")
+inc <- read.csv("lalondedata.txt", header = TRUE) 
+
+# Observing the data set
+summary(inc)
+head(inc)
+colnames(inc)
+
+# Dropping the identifier row, as it is not required for our analysis
+inc <- inc[,2:ncol(inc)]
+
+# identifying what 0 and 1 means for each factor variable
+inc$treat[inc$treat == 0] <- "No Training"
+inc$treat[inc$treat == 1] <- "Training"
+
+inc$black[inc$black == 0] <- "Non-Black"
+inc$black[inc$black == 1] <- "Black"
+
+inc$hispan[inc$hispan == 0] <- "Non-Hispanic"
+inc$hispan[inc$hispan == 1] <- "Hispanic"
+
+inc$married[inc$married == 0] <- "Not Married"
+inc$married[inc$married == 1] <- "Married"
+
+inc$nodegree[inc$nodegree == 1] <- "No Degree"
+inc$nodegree[inc$nodegree == 0] <- "Degree"
+
+# Converting the categorical variables into factor
+inc$treat <- factor(inc$treat)
+inc$black <- factor(inc$black)
+inc$hispan <- factor(inc$hispan)
+inc$married <- factor(inc$married)
+inc$nodegree <- factor(inc$nodegree)
+
+# Creating the response variable - comparing re78 against re74
+inc$wage_diff <- inc$re78 - inc$re74
+
+# look at revised data set
+head(inc)
+```
+
+## EDA for Continuous Variables:
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# wage vs age
+ggplot(inc,aes(x=age, y=wage_diff)) +
+  geom_point() + geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage Difference by Age",y="Wage Difference",x="Age")
+# wage vs educ
+ggplot(inc,aes(x=educ, y=wage_diff)) +
+  geom_point() + geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage Difference by Education",y="Wage Difference",x="Years of Education")
+```
+## EDA for Factor Variables:
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# wage vs treat
+ggplot(inc,aes(x=treat, y=wage_diff, fill=treat)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette="Blues") +
+  labs(title="Wage Difference for Training vs No Training",y="Wage Difference",x="Traning or No Training") +
+  theme_classic() + theme(legend.position="none")
+# wage vs black
+ggplot(inc,aes(x=black, y=wage_diff, fill=black)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette="Blues") +
+  labs(title="Wage Difference for Black vs Non-Black",y="Wage Difference",x="Black or Non-Black") +
+  theme_classic() + theme(legend.position="none")
+# wage vs hispanic
+ggplot(inc,aes(x=hispan, y=wage_diff, fill=hispan)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette="Blues") +
+  labs(title="Wage Difference for Hispanic vs Non-Hispanic",y="Wage Difference",x="Hispanic or Non-Hispanic") +
+  theme_classic() + theme(legend.position="none")
+# wage vs married
+ggplot(inc,aes(x=married, y=wage_diff, fill=married)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette="Blues") +
+  labs(title="Wage Difference for Married vs Not Married",y="Wage Difference",x="Married or Not Married") +
+  theme_classic() + theme(legend.position="none")
+# wage vs degree
+ggplot(inc,aes(x=nodegree, y=wage_diff, fill=nodegree)) +
+  geom_boxplot() + 
+  scale_fill_brewer(palette="Blues") +
+  labs(title="Wage Difference for Degree vs No Degree",y="Wage Difference",x="Degree or No Degree") +
+  theme_classic() + theme(legend.position="none")
+```
+
+## EDA Age Interactions:
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# wage vs age by treat
+ggplot(inc,aes(x=age, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=treat)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Age by Treatment",y="Wage Difference",x="Age") +
+  facet_wrap( ~ treat,ncol= 2) #this is number of "flavors"
+# wage vs age by black
+ggplot(inc,aes(x=age, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=black)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Age by Black",y="Wage Difference",x="Age") +
+  facet_wrap( ~ black,ncol= 2) #this is number of "flavors"
+# wage vs age by hispan
+ggplot(inc,aes(x=age, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=hispan)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Age by Hispanic",y="Wage Difference",x="Age") +
+  facet_wrap( ~ hispan,ncol= 2) #this is number of "flavors"
+# wage vs age by married
+ggplot(inc,aes(x=age, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=married)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Age by Married",y="Wage Difference",x="Age") +
+  facet_wrap( ~ married,ncol= 2) #this is number of "flavors"
+# wage vs age by degree
+ggplot(inc,aes(x=age, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=nodegree)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Age by Degree",y="Wage Difference",x="Age") +
+  facet_wrap( ~ nodegree,ncol= 2) #this is number of "flavors"
+```
+## EDA Education Interactions:
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# wage vs educ by treat
+ggplot(inc,aes(x=educ, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=treat)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Education by Treatment",y="Wage Difference",x="Education") +
+  facet_wrap( ~ treat,ncol= 2) #this is number of "flavors"
+# wage vs educ by black
+ggplot(inc,aes(x=educ, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=black)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Education by Black",y="Wage Difference",x="Education") +
+  facet_wrap( ~ black,ncol= 2) #this is number of "flavors"
+# wage vs educ by hispan
+ggplot(inc,aes(x=educ, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=hispan)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Education by Hispanic",y="Wage Difference",x="Education") +
+  facet_wrap( ~ hispan,ncol= 2) #this is number of "flavors"
+# wage vs educ by married
+ggplot(inc,aes(x=educ, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=married)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Education by Married",y="Wage Difference",x="Education") +
+  facet_wrap( ~ married,ncol= 2) #this is number of "flavors"
+# wage vs educ by degree
+ggplot(inc,aes(x=educ, y=wage_diff)) +
+  geom_point(size = .5, alpha = .7,aes(color=nodegree)) +
+  geom_smooth(method="lm",col="red3") + theme_classic() + theme(legend.position="none") +
+  labs(title="Wage vs Education by Degree",y="Wage Difference",x="Education") +
+  facet_wrap( ~ nodegree,ncol= 2) #this is number of "flavors"
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Removing obs 132
+setwd("../../../dataset/")
+NSW <- read.csv("lalondedata.txt")
+
+NSW$treat <- factor(NSW$treat)
+NSW$hispan <- factor(NSW$hispan)
+NSW$black <- factor(NSW$black)
+NSW$married <- factor(NSW$married)
+NSW$nodegree <- factor(NSW$nodegree)
+NSW$wage_diff <- NSW$re78 - NSW$re74
+NSW$agec <- NSW$age - mean(NSW$age)
+NSW$educ_c <- NSW$educ - mean(NSW$educ)
+
+`%!in%` <- Negate(`%in%`)
+NSW <- NSW[rownames(NSW) %!in% c(132), ]
+
+# in this part of the code we just remove the outlier from our model, Mention in the EDA about his outlier
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+library(ggplot2)
+
+modelbase <- lm(formula = wage_diff ~ treat + agec + black + hispan + educ + married + nodegree, data = NSW)
+summary(modelbase)
+
+## this chunk of code just returns the base model
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Linearity assumptions for baseline model
+# now we use plot residuals to check for transformations
+ggplot(NSW, aes(x=age ,y=modelbase$residual))+ geom_point() + geom_smooth() + ggtitle("Age vs Residuals")
+# we see that model does well on linearity with age 
+
+# educ vs residual -- roughly random and linearity satisfied but might consider transformation if desperate
+ggplot(NSW, aes(x=educ ,y=modelbase$residual))+ geom_point() + geom_smooth() + ggtitle("Educ vs Residuals")
+
+# now checking for independence, constant variance 
+
+plot(modelbase, which =1)
+plot(modelbase , which =2)
+# check for ouliers and leverage point . we find some but none are influential points
+plot(modelbase, which =4)
+plot(modelbase, which =5)
+# we do model assessment for here for base model here
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+null_model <- lm(formula = wage_diff ~ treat + agec + black + hispan + treat:agec + treat:hispan + treat:black + agec:black + agec:hispan, data = NSW)
+full_model <- lm(formula = wage_diff ~ treat + agec + black + hispan + educ_c + married + nodegree + treat:agec + treat:hispan + treat:black + agec:black + agec:hispan + educ_c:treat + educ_c:hispan, data = NSW)
+Model_stepwise <- step(null_model, scope = formula(full_model), direction="both",trace=0)
+Model_stepwise$call
+
+AIC <- lm(formula = wage_diff ~ treat + agec + married + treat:agec, data = NSW)
+BIC <- lm(formula = wage_diff ~ treat + agec + treat:agec, data = NSW)
+anova(BIC, AIC)
+
+# AIC and BIC give same variables except married; by taking into account the EDA 
+# and comparing the two with annova, we choose AIC model as the main model
+summary(AIC)
+# Feature selection is going to be the next step here
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+null_model <- lm(formula = wage_diff ~ treat + agec + black + hispan + treat:agec + treat:hispan + treat:black + agec:black + agec:hispan, data = NSW)
+full_model <- lm(formula = wage_diff ~ treat + agec + black + hispan + educ_c + married + nodegree + treat:agec + treat:hispan + treat:black + agec:black + agec:hispan + educ_c:treat + educ_c:hispan, data = NSW)
+Model_stepwise <- step(null_model, scope = formula(full_model), direction="both",trace=0)
+Model_stepwise$call
+
+AIC <- lm(formula = wage_diff ~ treat + agec + married + treat:agec, data = NSW)
+BIC <- lm(formula = wage_diff ~ treat + agec + treat:agec, data = NSW)
+anova(BIC, AIC)
+
+# AIC and BIC give same variables except married; by taking into account the EDA 
+# and comparing the two with annova, we choose AIC model as the main model
+summary(AIC)
+# Feature selection has been done in this part of the model
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+# Just to confirm we add each interaction in the null model and two we found interesting in the EDA one by one
+# to our AIC and do an anova test and see that none of them significantly improved our fit for the model
+# so we keep AIC (renamed as main model) as our final model
+# please not that for annova we are adding the interactions to the tes_model 
+
+main_model <- lm(formula = wage_diff ~ treat + age + married + treat:age, data = NSW)
+test_model <- lm(formula = wage_diff ~ treat + age + married + treat:age + nodegree, data = NSW)
+anova(main_model, test_model)
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+main_model <- lm(formula = wage_diff ~ agec + treat + married + agec:treat, data = NSW)
+summary(main_model)
+library(ggplot2)
+ggplot(NSW, aes(x=agec, y = wage_diff)) + geom_point() + geom_smooth()
+# roughly linear for age
+
+
+plot(main_model, which = 1)
+# constant variance and independence but we need to check outliers
+plot(main_model, which = 2)
+# noramlity seems fine
+
+
+plot(main_model, which =5)
+# we have few few leverage points given their leverage is greater than 0.02
+
+# so now we have leverage and outliers and we check the cook's distance to ensure that none of 
+# them are influential points
+
+plot(main_model, 4)
+# we have no influential points 
+
+# lastly we check for multivollinearity
+library(rms)
+vif(main_model)
+# this part is essentially the model assessment of our main variable
+```
+
+# Appendix: All code for this report
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
